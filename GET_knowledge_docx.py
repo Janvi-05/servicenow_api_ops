@@ -3,6 +3,7 @@ import json
 from bs4 import BeautifulSoup
 from datetime import datetime
 import re
+import os
 from docx import Document
 from docx.shared import Inches
 from docx.enum.text import WD_ALIGN_PARAGRAPH
@@ -104,7 +105,7 @@ def format_kb_article_to_docx(doc, article):
 url = "https://lendlease.service-now.com/api/now/table/kb_knowledge?sysparm_query=sys_class_name!=^publishedISNOTEMPTY^latest=true^kb_knowledge_base=01125e5a1b9b685017eeebd22a4bcb44&sysparm_display_value=true"
 payload = {}
 headers = {
-  'Authorization': 'Bearer ApUB-mr5xOiFMChMMopPKM5EgXbEHpNj8rbxNiZ62gVfVeWXCTueytgPk0IydGFvc1OdDFv4GTIvvhC69wkX7g',
+  'Authorization': 'Bearer x3s7wOYIyFKXjeEzF2bEIyGMS8fSFmfXe0N9m_uhIFuCv8q_wNSzHEL_2MtOm5_clmAksHbgy8zo18ORwh6aVQ',
   'Cookie': 'BIGipServerpool_lendlease=c5889ad29f701618e3baa37002034b82; JSESSIONID=3901AC59B602B51CE1CF74C8956FD362; glide_node_id_for_js=fc4812175032dd94c0ff92cf846b17cf27f0dce0a6beb49e12e5c7bb0f48d836; glide_session_store=6360D6592B3D6E50E412F41CD891BF5D; glide_user_activity=U0N2M18xOnRMdkppdFlTN2o2cFlnUVdaQ092UjZ6S0pFdXV0dmZBb3BMcGxVa0hrZ1E9OlVBQWc4QWozUERYQi9mVCs2WDRJa0hTRTgwQjkxMGZkMzUrNGxlUXRNUW89; glide_user_route=glide.5a07cc0a1b859ed021434a69d48daaeb'
 }
 
@@ -138,18 +139,38 @@ try:
         # Process each article
         articles = data.get('result', [])
         for i, article in enumerate(articles):
+            # Generate a new document for each article
+            doc = Document()
+
+            # Document title
+            title = doc.add_heading('Lendlease Knowledge Base Article', 0)
+            title.alignment = WD_ALIGN_PARAGRAPH.CENTER
+
+            # Article info
+            info_para = doc.add_paragraph()
+            info_para.add_run(f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
+            info_para.add_run(f"Article Number: {article.get('number', 'Unknown')}")
+            info_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
+
+            doc.add_paragraph("_" * 80)
+
+            # Add article content
             format_kb_article_to_docx(doc, article)
-            # Remove page break from the last article
-            if i == len(articles) - 1:
-                # Remove the last page break
-                if doc.paragraphs[-1].text == '':
-                    doc.paragraphs[-1]._element.getparent().remove(doc.paragraphs[-1]._element)
+
+            # Save each article as a separate .docx file
+            safe_article_number = re.sub(r'[^\w\-_. ]', '_', article.get('number', f"article_{i+1}"))
+            # Create output directory if it doesn't exist
+            output_dir = "KB_docx_files"
+            os.makedirs(output_dir, exist_ok=True)
+
+            # Save the .docx file into the folder
+            docx_filename = f"kb_article_{safe_article_number}_{timestamp}.docx"
+            docx_path = os.path.join(output_dir, docx_filename)
+            doc.save(docx_path)
+            print(f"📄 Saved: {docx_path}")
+
         
-        # Save Word document
-        docx_filename = f"lendlease_kb_articles_{timestamp}.docx"
-        doc.save(docx_filename)
-        
-        print(f"✅ Word document saved as: {docx_filename}")
+       
         print(f"📊 Processed {len(articles)} articles")
         
         # Also save as text file for backup
