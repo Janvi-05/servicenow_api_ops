@@ -64,30 +64,34 @@ def format_kb_article_to_docx(doc, article):
     if article.get('number'):
         title = doc.add_heading(f"Article: {article['number']}", level=1)
         title.alignment = WD_ALIGN_PARAGRAPH.LEFT
-    
+
     # Metadata table
-    if any([article.get('sys_created_on'), article.get('sys_updated_on'), article.get('workflow_state')]):
+    meta_fields = [
+        ("Created:", article.get('sys_created_on')),
+        ("Updated:", article.get('sys_updated_on')),
+        ("Status:", article.get('workflow_state')),
+        ("Published:", article.get('published')),
+        ("Author:", article.get('author', {}).get('display_value') if isinstance(article.get('author'), dict) else article.get('author')),
+        ("View Count (All):", article.get('u_view_count_all')),
+        ("Active:", article.get('active')),
+        ("Topic:", article.get('topic')),
+        ("Valid To:", article.get('valid_to')),
+        ("KB Category:", article.get('kb_category', {}).get('display_value') if isinstance(article.get('kb_category'), dict) else article.get('kb_category')),
+    ]
+
+    # Filter out None values and create table
+    meta_fields = [item for item in meta_fields if item[1]]
+    if meta_fields:
         table = doc.add_table(rows=0, cols=2)
         table.style = 'Table Grid'
-        
-        if article.get('sys_created_on'):
+        for label, value in meta_fields:
             row = table.add_row()
-            row.cells[0].text = "Created:"
-            row.cells[1].text = article['sys_created_on']
-            
-        if article.get('sys_updated_on'):
-            row = table.add_row()
-            row.cells[0].text = "Updated:"
-            row.cells[1].text = article['sys_updated_on']
-            
-        if article.get('workflow_state'):
-            row = table.add_row()
-            row.cells[0].text = "Status:"
-            row.cells[1].text = article['workflow_state']
-        
+            row.cells[0].text = label
+            row.cells[1].text = value
+
         # Add space after table
         doc.add_paragraph()
-    
+
     # Main content
     if article.get('text'):
         content_heading = doc.add_heading('Content', level=2)
@@ -102,6 +106,7 @@ def format_kb_article_to_docx(doc, article):
     # Add page break between articles (except for the last one)
     doc.add_page_break()
 
+
 # Parse command-line argument for knowledge base ID
 parser = argparse.ArgumentParser(description='Download and export KB articles from ServiceNow')
 parser.add_argument('kb_id', type=str, help='Knowledge Base sys_id (e.g., 01125e5a1b9b685017eeebd22a4bcb44)')
@@ -113,7 +118,7 @@ kb_id = args.kb_id
 url = f"https://lendlease.service-now.com/api/now/table/kb_knowledge?sysparm_query=sys_class_name!=^publishedISNOTEMPTY^latest=true^kb_knowledge_base={kb_id}&sysparm_display_value=true"
 payload = {}
 headers = {
-  'Authorization': 'Bearer x3s7wOYIyFKXjeEzF2bEIyGMS8fSFmfXe0N9m_uhIFuCv8q_wNSzHEL_2MtOm5_clmAksHbgy8zo18ORwh6aVQ',
+  'Authorization': 'Bearer 4SpifSoLhYQfF7QBxWWeYsljJNF2RX0nBxQEymSl7a7qTaiX6Wj4X91hjwe0nuBLXkcTTh3lvwj5UKm1nOQq5A',
   'Cookie': 'BIGipServerpool_lendlease=c5889ad29f701618e3baa37002034b82; JSESSIONID=3901AC59B602B51CE1CF74C8956FD362; glide_node_id_for_js=fc4812175032dd94c0ff92cf846b17cf27f0dce0a6beb49e12e5c7bb0f48d836; glide_session_store=6360D6592B3D6E50E412F41CD891BF5D; glide_user_activity=U0N2M18xOnRMdkppdFlTN2o2cFlnUVdaQ092UjZ6S0pFdXV0dmZBb3BMcGxVa0hrZ1E9OlVBQWc4QWozUERYQi9mVCs2WDRJa0hTRTgwQjkxMGZkMzUrNGxlUXRNUW89; glide_user_route=glide.5a07cc0a1b859ed021434a69d48daaeb'
 }
 
@@ -168,7 +173,7 @@ try:
             # Save each article as a separate .docx file
             safe_article_number = re.sub(r'[^\w\-_. ]', '_', article.get('number', f"article_{i+1}"))
             # Create output directory if it doesn't exist
-            output_dir = "KB_docx_files"
+            output_dir = "KB_docx_files_{timestamp}".format(timestamp=timestamp)
             os.makedirs(output_dir, exist_ok=True)
 
             # Save the .docx file into the folder
@@ -181,23 +186,7 @@ try:
        
         print(f"📊 Processed {len(articles)} articles")
         
-        # Also save as text file for backup
-        document_content = []
-        document_content.append("LENDLEASE KNOWLEDGE BASE ARTICLES")
-        document_content.append("=" * 50)
-        document_content.append(f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-        document_content.append(f"Total Articles: {len(articles)}")
-        document_content.append("\n" + "="*80 + "\n")
-        
-        for article in articles:
-            formatted_article = format_kb_article_backup(article)
-            document_content.append(formatted_article)
-        
-        txt_filename = f"lendlease_kb_articles_{timestamp}.txt"
-        with open(txt_filename, 'w', encoding='utf-8') as file:
-            file.write("\n".join(document_content))
-        
-        print(f"✅ Backup text file saved as: {txt_filename}")
+       
         
     else:
         print(f"❌ API request failed with status code: {response.status_code}")
