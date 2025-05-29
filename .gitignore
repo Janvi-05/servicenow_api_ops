@@ -163,6 +163,7 @@ cython_debug/
 *.docx
 *.md
 attachment_downloads_*/
+KB_docx_files
 
 # But do NOT ignore requirements.txt
 !requirements.txt
