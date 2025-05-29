@@ -162,6 +162,7 @@ cython_debug/
 *.txt
 *.docx
 *.md
+*.json
 attachment_downloads_*/
 KB_docx_files
 
