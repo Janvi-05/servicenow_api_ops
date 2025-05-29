@@ -4,6 +4,7 @@ from bs4 import BeautifulSoup
 from datetime import datetime
 import re
 import os
+import argparse
 from docx import Document
 from docx.shared import Inches
 from docx.enum.text import WD_ALIGN_PARAGRAPH
@@ -101,8 +102,15 @@ def format_kb_article_to_docx(doc, article):
     # Add page break between articles (except for the last one)
     doc.add_page_break()
 
+# Parse command-line argument for knowledge base ID
+parser = argparse.ArgumentParser(description='Download and export KB articles from ServiceNow')
+parser.add_argument('kb_id', type=str, help='Knowledge Base sys_id (e.g., 01125e5a1b9b685017eeebd22a4bcb44)')
+args = parser.parse_args()
+kb_id = args.kb_id
+
+
 # Your API call
-url = "https://lendlease.service-now.com/api/now/table/kb_knowledge?sysparm_query=sys_class_name!=^publishedISNOTEMPTY^latest=true^kb_knowledge_base=01125e5a1b9b685017eeebd22a4bcb44&sysparm_display_value=true"
+url = f"https://lendlease.service-now.com/api/now/table/kb_knowledge?sysparm_query=sys_class_name!=^publishedISNOTEMPTY^latest=true^kb_knowledge_base={kb_id}&sysparm_display_value=true"
 payload = {}
 headers = {
   'Authorization': 'Bearer x3s7wOYIyFKXjeEzF2bEIyGMS8fSFmfXe0N9m_uhIFuCv8q_wNSzHEL_2MtOm5_clmAksHbgy8zo18ORwh6aVQ',
