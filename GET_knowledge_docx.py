@@ -118,7 +118,7 @@ kb_id = args.kb_id
 url = f"https://lendlease.service-now.com/api/now/table/kb_knowledge?sysparm_query=sys_class_name!=^publishedISNOTEMPTY^latest=true^kb_knowledge_base={kb_id}&sysparm_display_value=true"
 payload = {}
 headers = {
-  'Authorization': 'Bearer 4SpifSoLhYQfF7QBxWWeYsljJNF2RX0nBxQEymSl7a7qTaiX6Wj4X91hjwe0nuBLXkcTTh3lvwj5UKm1nOQq5A',
+  'Authorization': 'Bearer LFT612CwbhRj2QR_id2LcEojIWraGE9lgpu51BabMHszqcWclNCQIpqHSaDO-pmwGXBowMINr1d_ENTsypdIeQ',
   'Cookie': 'BIGipServerpool_lendlease=c5889ad29f701618e3baa37002034b82; JSESSIONID=3901AC59B602B51CE1CF74C8956FD362; glide_node_id_for_js=fc4812175032dd94c0ff92cf846b17cf27f0dce0a6beb49e12e5c7bb0f48d836; glide_session_store=6360D6592B3D6E50E412F41CD891BF5D; glide_user_activity=U0N2M18xOnRMdkppdFlTN2o2cFlnUVdaQ092UjZ6S0pFdXV0dmZBb3BMcGxVa0hrZ1E9OlVBQWc4QWozUERYQi9mVCs2WDRJa0hTRTgwQjkxMGZkMzUrNGxlUXRNUW89; glide_user_route=glide.5a07cc0a1b859ed021434a69d48daaeb'
 }
 
@@ -173,12 +173,22 @@ try:
             # Save each article as a separate .docx file
             safe_article_number = re.sub(r'[^\w\-_. ]', '_', article.get('number', f"article_{i+1}"))
             # Create output directory if it doesn't exist
-            output_dir = "KB_docx_files_{timestamp}".format(timestamp=timestamp)
-            os.makedirs(output_dir, exist_ok=True)
+            # output_dir = "KB_docx_files_{timestamp}".format(timestamp=timestamp)
+            # os.makedirs(output_dir, exist_ok=True)
+            # Create parent directory
+            parent_dir = f"KB_docx_files_{timestamp}"
+            os.makedirs(parent_dir, exist_ok=True)
+
+            # Create subfolder for each article number
+            article_number = article.get('number', f"article_{i+1}")
+            safe_article_number = re.sub(r'[^\w\-_. ]', '_', article_number)
+            article_dir = os.path.join(parent_dir, safe_article_number)
+            os.makedirs(article_dir, exist_ok=True)
+
 
             # Save the .docx file into the folder
-            docx_filename = f"kb_article_{safe_article_number}_{timestamp}.docx"
-            docx_path = os.path.join(output_dir, docx_filename)
+            docx_filename = f"kb_article_{safe_article_number}.docx"
+            docx_path = os.path.join(article_dir, docx_filename)
             doc.save(docx_path)
             print(f"📄 Saved: {docx_path}")
 
@@ -199,4 +209,3 @@ except json.JSONDecodeError as e:
 except Exception as e:
     print(f"❌ An error occurred: {e}")
 
-print("\n🔧 Required libraries: pip install requests beautifulsoup4 python-docx")
