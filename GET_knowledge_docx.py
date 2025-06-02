@@ -106,6 +106,44 @@ def format_kb_article_to_docx(doc, article):
     # Add page break between articles (except for the last one)
     doc.add_page_break()
 
+def download_attachments_for_article(table_sys_id, output_dir, headers):
+    """Download attachments for a specific KB article and save them in its folder"""
+    attachment_url = f"https://lendlease.service-now.com/api/now/attachment?sysparm_query=table_sys_id={table_sys_id}"
+    
+    try:
+        response = requests.get(attachment_url, headers=headers)
+        if response.status_code == 200:
+            data = response.json()
+            attachments = data.get('result', [])
+            
+            if not attachments:
+                print(f"📎 No attachments found for {table_sys_id}")
+                return
+            
+            print(f"📎 Found {len(attachments)} attachment(s) for {table_sys_id}")
+            
+            for attachment in attachments:
+                file_name = attachment.get('file_name')
+                download_link = attachment.get('download_link')
+                file_size = attachment.get('size_bytes')
+                
+                if download_link and file_name:
+                    try:
+                        file_response = requests.get(download_link, headers=headers)
+                        if file_response.status_code == 200:
+                            file_path = os.path.join(output_dir, file_name)
+                            with open(file_path, 'wb') as f:
+                                f.write(file_response.content)
+                            print(f"   ✓ Downloaded: {file_name} ({file_size} bytes)")
+                        else:
+                            print(f"   ✗ Failed to download {file_name} (Status {file_response.status_code})")
+                    except Exception as e:
+                        print(f"   ✗ Error downloading {file_name}: {e}")
+        else:
+            print(f"❌ Failed to get attachment list for {table_sys_id}. Status code: {response.status_code}")
+    except Exception as e:
+        print(f"❌ Exception while fetching attachments: {e}")
+
 
 # Parse command-line argument for knowledge base ID
 parser = argparse.ArgumentParser(description='Download and export KB articles from ServiceNow')
@@ -191,6 +229,13 @@ try:
             docx_path = os.path.join(article_dir, docx_filename)
             doc.save(docx_path)
             print(f"📄 Saved: {docx_path}")
+            
+            # Download attachments for this article
+            table_sys_id = article.get('sys_id')
+            if table_sys_id:
+                download_attachments_for_article(table_sys_id, article_dir, headers)
+            else:
+                print(f"⚠️ No sys_id found for article {safe_article_number}, skipping attachment download.")
 
         
        
