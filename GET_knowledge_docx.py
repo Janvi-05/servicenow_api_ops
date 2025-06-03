@@ -184,6 +184,8 @@ def download_attachments_for_article(table_sys_id, output_dir, headers):
             
             for attachment in attachments:
                 file_name = attachment.get('file_name')
+                sys_id = attachment.get('sys_id')
+                file_name = f"{sys_id}_{file_name}" if file_name else f"{table_sys_id}_attachment"
                 download_link = attachment.get('download_link')
                 file_size = attachment.get('size_bytes')
                 
@@ -216,7 +218,7 @@ kb_id = args.kb_id
 url = f"https://lendlease.service-now.com/api/now/table/kb_knowledge?sysparm_query=sys_class_name!=^publishedISNOTEMPTY^latest=true^kb_knowledge_base={kb_id}&sysparm_display_value=true"
 payload = {}
 headers = {
-  'Authorization': 'Bearer LFT612CwbhRj2QR_id2LcEojIWraGE9lgpu51BabMHszqcWclNCQIpqHSaDO-pmwGXBowMINr1d_ENTsypdIeQ',
+  'Authorization': 'Bearer CFHGc8wSbsCe7P9ggGR3hnnml4ssgA6v_sPg41YOdH9uzc6udu6qLM9f8e_5o1zVzQVSMZ6-MqE5eCxGor3Ymw',
   'Cookie': 'BIGipServerpool_lendlease=c5889ad29f701618e3baa37002034b82; JSESSIONID=3901AC59B602B51CE1CF74C8956FD362; glide_node_id_for_js=fc4812175032dd94c0ff92cf846b17cf27f0dce0a6beb49e12e5c7bb0f48d836; glide_session_store=6360D6592B3D6E50E412F41CD891BF5D; glide_user_activity=U0N2M18xOnRMdkppdFlTN2o2cFlnUVdaQ092UjZ6S0pFdXV0dmZBb3BMcGxVa0hrZ1E9OlVBQWc4QWozUERYQi9mVCs2WDRJa0hTRTgwQjkxMGZkMzUrNGxlUXRNUW89; glide_user_route=glide.5a07cc0a1b859ed021434a69d48daaeb'
 }
 
