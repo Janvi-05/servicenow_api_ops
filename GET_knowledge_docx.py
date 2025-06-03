@@ -6,6 +6,7 @@ import re
 import os
 import argparse
 from docx import Document
+from io import BytesIO
 from docx.shared import Inches
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 from dotenv import load_dotenv
@@ -179,13 +180,14 @@ def format_kb_article_to_docx(doc, article):
     # Main content
     if article.get('text'):
         content_heading = doc.add_heading('Content', level=2)
-        clean_text = clean_html_text(article['text'])
+        add_html_with_images(doc, article['text'])
+    #     clean_text = clean_html_text(article['text'])
         
-        # Split content into paragraphs and add them
-        paragraphs = clean_text.split('\n\n')
-        for para_text in paragraphs:
-            if para_text.strip():
-                doc.add_paragraph(para_text.strip())
+    #     # Split content into paragraphs and add them
+    #     paragraphs = clean_text.split('\n\n')
+    #     for para_text in paragraphs:
+    #         if para_text.strip():
+    #             doc.add_paragraph(para_text.strip())
     
     # Add page break between articles (except for the last one)
     doc.add_page_break()
@@ -258,7 +260,24 @@ def download_attachments_for_article(table_sys_id, output_dir, headers):
                 print(f"   ✗ Error downloading {file_name}: {e}")
 
 
+def add_html_with_images(doc, html_content):
+    soup = BeautifulSoup(html_content, 'html.parser')
 
+    for elem in soup.contents:
+        if elem.name == 'img':
+            src = elem.get('src')
+            if src:
+                try:
+                    img_data = requests.get(src).content
+                    img_stream = BytesIO(img_data)
+                    doc.add_picture(img_stream, width=Inches(4))  # or another size
+                except Exception as e:
+                    doc.add_paragraph(f'[Image failed to load: {src}]')
+        elif elem.name:
+            doc.add_paragraph(elem.get_text())
+        else:
+            doc.add_paragraph(str(elem).strip())
+            
 # Parse command-line argument for knowledge base ID
 parser = argparse.ArgumentParser(description='Download and export KB articles from ServiceNow')
 parser.add_argument('kb_id', type=str, help='Knowledge Base sys_id (e.g., 01125e5a1b9b685017eeebd22a4bcb44)')
