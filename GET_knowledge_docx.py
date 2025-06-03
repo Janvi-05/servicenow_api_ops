@@ -9,23 +9,27 @@ from docx import Document
 from docx.shared import Inches
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 from dotenv import load_dotenv
+from urllib.parse import urlencode
 
 load_dotenv()
 
+
 def get_bearer_token():
     url = "https://lendlease.service-now.com/oauth_token.do"
-    payload = {
+    payload_dict = {
         'grant_type': 'password',
-        'username': os.getenv('USERNAME'),
-        'password': os.getenv('PASSWORD'),
-        'client_id': os.getenv('CLIENT_ID'),
-        'client_secret': os.getenv('CLIENT_SECRET')
+        'username': os.getenv('SNOW_USERNAME'),
+        'password': os.getenv('SNOW_PASSWORD'),
+        'client_id': os.getenv('SNOW_CLIENT_ID'),
+        'client_secret': os.getenv('SNOW_CLIENT_SECRET')
     }
+    payload = urlencode(payload_dict)
+
     headers = {
-        'Content-Type': 'application/x-www-form-urlencoded'
+    'Content-Type': 'application/x-www-form-urlencoded',
     }
     response = requests.post(url, data=payload, headers=headers)
-    response.raise_for_status()
+    print(f"Response Status Code: {response.status_code}")
     data = response.json()
     return data['access_token']
 
