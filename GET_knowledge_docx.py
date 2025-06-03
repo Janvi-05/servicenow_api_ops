@@ -139,7 +139,6 @@ def format_kb_article_to_docx(doc, article):
         ("x caukp ebonding requester:",article.get('x_caukp_ebonding_requester')),
         ("Ownership group:",article.get('ownership_group')),
     ]
-
     # Filter out None values and create table
     meta_fields = [item for item in meta_fields if item[1]]
     if meta_fields:
@@ -167,6 +166,46 @@ def format_kb_article_to_docx(doc, article):
     # Add page break between articles (except for the last one)
     doc.add_page_break()
 
+def download_attachments_for_article(table_sys_id, output_dir, headers):
+    """Download attachments for a specific KB article and save them in its folder"""
+    attachment_url = f"https://lendlease.service-now.com/api/now/attachment?sysparm_query=table_sys_id={table_sys_id}"
+    
+    try:
+        response = requests.get(attachment_url, headers=headers)
+        if response.status_code == 200:
+            data = response.json()
+            attachments = data.get('result', [])
+            
+            if not attachments:
+                print(f"📎 No attachments found for {table_sys_id}")
+                return
+            
+            print(f"📎 Found {len(attachments)} attachment(s) for {table_sys_id}")
+            
+            for attachment in attachments:
+                file_name = attachment.get('file_name')
+                sys_id = attachment.get('sys_id')
+                file_name = f"{sys_id}_{file_name}" if file_name else f"{table_sys_id}_attachment"
+                download_link = attachment.get('download_link')
+                file_size = attachment.get('size_bytes')
+                
+                if download_link and file_name:
+                    try:
+                        file_response = requests.get(download_link, headers=headers)
+                        if file_response.status_code == 200:
+                            file_path = os.path.join(output_dir, file_name)
+                            with open(file_path, 'wb') as f:
+                                f.write(file_response.content)
+                            print(f"   ✓ Downloaded: {file_name} ({file_size} bytes)")
+                        else:
+                            print(f"   ✗ Failed to download {file_name} (Status {file_response.status_code})")
+                    except Exception as e:
+                        print(f"   ✗ Error downloading {file_name}: {e}")
+        else:
+            print(f"❌ Failed to get attachment list for {table_sys_id}. Status code: {response.status_code}")
+    except Exception as e:
+        print(f"❌ Exception while fetching attachments: {e}")
+
 
 # Parse command-line argument for knowledge base ID
 parser = argparse.ArgumentParser(description='Download and export KB articles from ServiceNow')
@@ -179,8 +218,8 @@ kb_id = args.kb_id
 url = f"https://lendlease.service-now.com/api/now/table/kb_knowledge?sysparm_query=sys_class_name!=^publishedISNOTEMPTY^latest=true^kb_knowledge_base={kb_id}&sysparm_display_value=true"
 payload = {}
 headers = {
-  'Authorization': 'Bearer T8cdGUPzDMQGwpGEc5zUYTrqf46fCmW9HQgO58i9ZTOpk_c03NWthebCKEMcjMy-GF50Ipo7Bt3bpydLFgTtNA',
-  'Cookie': 'BIGipServerpool_lendlease=79ce09d0b3e23f5256871ffb409399ee; JSESSIONID=01A4CE5F22AFEE5A3996E5B5D207CF7F; glide_node_id_for_js=183c289393367ee4c6986408359e1a4703ca618e44d342a23d2196f17ea03570; glide_session_store=90DEDC7D2B352A507DDDFD84FE91BF59; glide_user_activity=U0N2M18xOlFHZ0dwM0RGdmVkNUJpaXFaUURYRmRqeTNuQmNDdTNkVnFvbXk1dDE4QTQ9OjJFc0pxd2x0eEdBdGlWNmRZaDdYSVowc29tQ2RHeVFaenJNVGpMM0ptcGM9; glide_user_route=glide.da3ebff2633845391cdfe258b9a97c5d'
+  'Authorization': 'Bearer CFHGc8wSbsCe7P9ggGR3hnnml4ssgA6v_sPg41YOdH9uzc6udu6qLM9f8e_5o1zVzQVSMZ6-MqE5eCxGor3Ymw',
+  'Cookie': 'BIGipServerpool_lendlease=c5889ad29f701618e3baa37002034b82; JSESSIONID=3901AC59B602B51CE1CF74C8956FD362; glide_node_id_for_js=fc4812175032dd94c0ff92cf846b17cf27f0dce0a6beb49e12e5c7bb0f48d836; glide_session_store=6360D6592B3D6E50E412F41CD891BF5D; glide_user_activity=U0N2M18xOnRMdkppdFlTN2o2cFlnUVdaQ092UjZ6S0pFdXV0dmZBb3BMcGxVa0hrZ1E9OlVBQWc4QWozUERYQi9mVCs2WDRJa0hTRTgwQjkxMGZkMzUrNGxlUXRNUW89; glide_user_route=glide.5a07cc0a1b859ed021434a69d48daaeb'
 }
 
 try:
@@ -234,14 +273,31 @@ try:
             # Save each article as a separate .docx file
             safe_article_number = re.sub(r'[^\w\-_. ]', '_', article.get('number', f"article_{i+1}"))
             # Create output directory if it doesn't exist
-            output_dir = "KB_docx_files_{timestamp}".format(timestamp=timestamp)
-            os.makedirs(output_dir, exist_ok=True)
+            # output_dir = "KB_docx_files_{timestamp}".format(timestamp=timestamp)
+            # os.makedirs(output_dir, exist_ok=True)
+            # Create parent directory
+            parent_dir = f"KB_docx_files_{timestamp}"
+            os.makedirs(parent_dir, exist_ok=True)
+
+            # Create subfolder for each article number
+            article_number = article.get('number', f"article_{i+1}")
+            safe_article_number = re.sub(r'[^\w\-_. ]', '_', article_number)
+            article_dir = os.path.join(parent_dir, safe_article_number)
+            os.makedirs(article_dir, exist_ok=True)
+
 
             # Save the .docx file into the folder
-            docx_filename = f"kb_article_{safe_article_number}_{timestamp}.docx"
-            docx_path = os.path.join(output_dir, docx_filename)
+            docx_filename = f"kb_article_{safe_article_number}.docx"
+            docx_path = os.path.join(article_dir, docx_filename)
             doc.save(docx_path)
             print(f"📄 Saved: {docx_path}")
+            
+            # Download attachments for this article
+            table_sys_id = article.get('sys_id')
+            if table_sys_id:
+                download_attachments_for_article(table_sys_id, article_dir, headers)
+            else:
+                print(f"⚠️ No sys_id found for article {safe_article_number}, skipping attachment download.")
 
         
        
@@ -260,4 +316,3 @@ except json.JSONDecodeError as e:
 except Exception as e:
     print(f"❌ An error occurred: {e}")
 
-print("\n🔧 Required libraries: pip install requests beautifulsoup4 python-docx")
