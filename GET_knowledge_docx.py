@@ -8,6 +8,26 @@ import argparse
 from docx import Document
 from docx.shared import Inches
 from docx.enum.text import WD_ALIGN_PARAGRAPH
+from dotenv import load_dotenv
+
+load_dotenv()
+
+def get_bearer_token():
+    url = "https://lendlease.service-now.com/oauth_token.do"
+    payload = {
+        'grant_type': 'password',
+        'username': os.getenv('USERNAME'),
+        'password': os.getenv('PASSWORD'),
+        'client_id': os.getenv('CLIENT_ID'),
+        'client_secret': os.getenv('CLIENT_SECRET')
+    }
+    headers = {
+        'Content-Type': 'application/x-www-form-urlencoded'
+    }
+    response = requests.post(url, data=payload, headers=headers)
+    response.raise_for_status()
+    data = response.json()
+    return data['access_token']
 
 def clean_html_text(html_content):
     """Convert HTML to clean text"""
@@ -166,45 +186,73 @@ def format_kb_article_to_docx(doc, article):
     # Add page break between articles (except for the last one)
     doc.add_page_break()
 
+
 def download_attachments_for_article(table_sys_id, output_dir, headers):
-    """Download attachments for a specific KB article and save them in its folder"""
+    """Download attachments for a specific KB article and save them in its folder,
+    refresh token if 401 Unauthorized is received."""
+
     attachment_url = f"https://lendlease.service-now.com/api/now/attachment?sysparm_query=table_sys_id={table_sys_id}"
-    
-    try:
-        response = requests.get(attachment_url, headers=headers)
-        if response.status_code == 200:
+
+    def try_download(headers):
+        try:
+            response = requests.get(attachment_url, headers=headers)
+            if response.status_code == 401:
+                return 'unauthorized', None
+            elif response.status_code != 200:
+                print(f"❌ Failed to get attachment list for {table_sys_id}. Status code: {response.status_code}")
+                return 'failed', None
+            
             data = response.json()
             attachments = data.get('result', [])
-            
             if not attachments:
                 print(f"📎 No attachments found for {table_sys_id}")
-                return
+                return 'empty', None
             
             print(f"📎 Found {len(attachments)} attachment(s) for {table_sys_id}")
-            
-            for attachment in attachments:
-                file_name = attachment.get('file_name')
-                sys_id = attachment.get('sys_id')
-                file_name = f"{sys_id}_{file_name}" if file_name else f"{table_sys_id}_attachment"
-                download_link = attachment.get('download_link')
-                file_size = attachment.get('size_bytes')
-                
-                if download_link and file_name:
-                    try:
-                        file_response = requests.get(download_link, headers=headers)
-                        if file_response.status_code == 200:
-                            file_path = os.path.join(output_dir, file_name)
-                            with open(file_path, 'wb') as f:
-                                f.write(file_response.content)
-                            print(f"   ✓ Downloaded: {file_name} ({file_size} bytes)")
-                        else:
-                            print(f"   ✗ Failed to download {file_name} (Status {file_response.status_code})")
-                    except Exception as e:
-                        print(f"   ✗ Error downloading {file_name}: {e}")
-        else:
-            print(f"❌ Failed to get attachment list for {table_sys_id}. Status code: {response.status_code}")
-    except Exception as e:
-        print(f"❌ Exception while fetching attachments: {e}")
+            return 'success', attachments
+        except Exception as e:
+            print(f"❌ Exception while fetching attachments: {e}")
+            return 'error', None
+
+    status, attachments = try_download(headers)
+
+    if status == 'unauthorized':
+        print("🔄 Access token expired, refreshing token...")
+        # Refresh token here and update headers
+        new_token = get_bearer_token()
+        headers['Authorization'] = f'Bearer {new_token}'
+        # Retry once with new token
+        status, attachments = try_download(headers)
+        if status == 'unauthorized':
+            print("❌ Token refresh failed or new token also unauthorized.")
+            return
+        elif status != 'success':
+            return
+
+    if status != 'success':
+        return
+
+    # Download each attachment
+    for attachment in attachments:
+        file_name = attachment.get('file_name')
+        sys_id = attachment.get('sys_id')
+        file_name = f"{sys_id}_{file_name}" if file_name else f"{table_sys_id}_attachment"
+        download_link = attachment.get('download_link')
+        file_size = attachment.get('size_bytes')
+
+        if download_link and file_name:
+            try:
+                file_response = requests.get(download_link, headers=headers)
+                if file_response.status_code == 200:
+                    file_path = os.path.join(output_dir, file_name)
+                    with open(file_path, 'wb') as f:
+                        f.write(file_response.content)
+                    print(f"   ✓ Downloaded: {file_name} ({file_size} bytes)")
+                else:
+                    print(f"   ✗ Failed to download {file_name} (Status {file_response.status_code})")
+            except Exception as e:
+                print(f"   ✗ Error downloading {file_name}: {e}")
+
 
 
 # Parse command-line argument for knowledge base ID
@@ -217,6 +265,8 @@ kb_id = args.kb_id
 # Your API call
 url = f"https://lendlease.service-now.com/api/now/table/kb_knowledge?sysparm_query=sys_class_name!=^publishedISNOTEMPTY^latest=true^kb_knowledge_base={kb_id}&sysparm_display_value=true"
 payload = {}
+
+token = get_bearer_token()
 headers = {
   'Authorization': 'Bearer CFHGc8wSbsCe7P9ggGR3hnnml4ssgA6v_sPg41YOdH9uzc6udu6qLM9f8e_5o1zVzQVSMZ6-MqE5eCxGor3Ymw',
   'Cookie': 'BIGipServerpool_lendlease=c5889ad29f701618e3baa37002034b82; JSESSIONID=3901AC59B602B51CE1CF74C8956FD362; glide_node_id_for_js=fc4812175032dd94c0ff92cf846b17cf27f0dce0a6beb49e12e5c7bb0f48d836; glide_session_store=6360D6592B3D6E50E412F41CD891BF5D; glide_user_activity=U0N2M18xOnRMdkppdFlTN2o2cFlnUVdaQ092UjZ6S0pFdXV0dmZBb3BMcGxVa0hrZ1E9OlVBQWc4QWozUERYQi9mVCs2WDRJa0hTRTgwQjkxMGZkMzUrNGxlUXRNUW89; glide_user_route=glide.5a07cc0a1b859ed021434a69d48daaeb'
