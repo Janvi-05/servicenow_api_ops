@@ -53,35 +53,7 @@ def clean_html_text(html_content):
     
     return text
 
-def format_kb_article_backup(article):
-    """Format a single knowledge base article for text backup"""
-    formatted = []
-    
-    # Title/Number
-    if article.get('number'):
-        formatted.append(f"Article: {article['number']}")
-        formatted.append("=" * 50)
-    
-    # Metadata
-    if article.get('sys_created_on'):
-        formatted.append(f"Created: {article['sys_created_on']}")
-    if article.get('sys_updated_on'):
-        formatted.append(f"Updated: {article['sys_updated_on']}")
-    if article.get('workflow_state'):
-        formatted.append(f"Status: {article['workflow_state']}")
-    
-    formatted.append("")  # Empty line
-    
-    # Main content
-    if article.get('text'):
-        clean_text = clean_html_text(article['text'])
-        formatted.append("CONTENT:")
-        formatted.append("-" * 20)
-        formatted.append(clean_text)
-    
-    formatted.append("\n" + "="*80 + "\n")  # Separator between articles
-    
-    return "\n".join(formatted)
+
 
 def format_kb_article_to_docx(doc, article):
     """Add a formatted knowledge base article to the Word document"""
@@ -385,12 +357,12 @@ download_attachments_for_article(article['sys_id'], output_dir, headers)
 doc = Document()
 format_kb_article_to_docx(doc, article)
 
-temp_docx_path = os.path.join(output_dir, f"{article_number}_temp.docx")
+# temp_docx_path = os.path.join(output_dir, f"{article_number}_temp.docx")
 final_docx_path = os.path.join(output_dir, f"{article_number}.docx")
 
-doc.save(temp_docx_path)
+doc.save(final_docx_path)
 
 # Replace image placeholders
-replace_placeholders_with_images(temp_docx_path, output_dir, final_docx_path)
+replace_placeholders_with_images(final_docx_path, output_dir, final_docx_path)
 
 print(f"✅ DOCX generated at: {final_docx_path}")
