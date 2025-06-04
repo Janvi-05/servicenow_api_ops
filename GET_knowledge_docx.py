@@ -1,6 +1,6 @@
 import requests
 import json
-from bs4 import BeautifulSoup
+from bs4 import BeautifulSoup, NavigableString
 from datetime import datetime
 import re
 import os
@@ -192,7 +192,7 @@ def format_kb_article_to_docx(doc, article):
     #             doc.add_paragraph(para_text.strip())
     
     # Add page break between articles (except for the last one)
-    doc.add_page_break()
+    # doc.add_page_break()
 
 
 def download_attachments_for_article(table_sys_id, output_dir, headers):
@@ -262,24 +262,97 @@ def download_attachments_for_article(table_sys_id, output_dir, headers):
                 print(f"   ✗ Error downloading {file_name}: {e}")
 
 
+# def add_html_with_images(doc, html_content):
+#     soup = BeautifulSoup(html_content, 'html.parser')
+
+#     for elem in soup.contents:
+#         if elem.name == 'img':
+#             src = elem.get('src')
+#             if src:
+#                 try:
+#                     img_data = requests.get(src).content
+#                     img_stream = BytesIO(img_data)
+#                     doc.add_picture(img_stream, width=Inches(4))  # or another size
+#                 except Exception as e:
+#                     doc.add_paragraph(f'[Image failed to load: {src}]')
+#         elif elem.name:
+#             doc.add_paragraph(elem.get_text())
+#         else:
+#             doc.add_paragraph(str(elem).strip())
+
 def add_html_with_images(doc, html_content):
     soup = BeautifulSoup(html_content, 'html.parser')
 
-    for elem in soup.contents:
+    def process_element(elem):
         if elem.name == 'img':
-            src = elem.get('src')
-            if src:
-                try:
-                    img_data = requests.get(src).content
-                    img_stream = BytesIO(img_data)
-                    doc.add_picture(img_stream, width=Inches(4))  # or another size
-                except Exception as e:
-                    doc.add_paragraph(f'[Image failed to load: {src}]')
+            src = elem.get('src', '')
+            import re
+            sysid_match = re.search(r'sys_id=([a-zA-Z0-9]+)', src)
+            if sysid_match:
+                sysid = sysid_match.group(1)
+                doc.add_paragraph(f"[IMAGE_PLACEHOLDER:{sysid}]")
+            else:
+                doc.add_paragraph("[IMAGE_PLACEHOLDER:UNKNOWN]")
         elif elem.name:
-            doc.add_paragraph(elem.get_text())
-        else:
-            doc.add_paragraph(str(elem).strip())
-            
+            # For elements other than <img>, process children
+            text_chunks = []
+            for child in elem.children:
+                if child.name == 'img':
+                    process_element(child)
+                elif isinstance(child, NavigableString):
+                    text = str(child).strip()
+                    if text:
+                        text_chunks.append(text)
+                elif child.name:
+                    process_element(child)
+            if text_chunks:
+                doc.add_paragraph(' '.join(text_chunks))
+        elif isinstance(elem, NavigableString):
+            text = str(elem).strip()
+            if text:
+                doc.add_paragraph(text)
+
+    # Process all top-level elements in body or whole document
+    top_level = soup.body.contents if soup.body else soup.contents
+    for child in top_level:
+        process_element(child)
+
+def replace_placeholders_with_images(docx_path, local_image_folder, output_path):
+    doc = Document(docx_path)
+
+    for para in doc.paragraphs:
+        text = para.text
+        # Look for placeholder pattern
+        if "[IMAGE_PLACEHOLDER:" in text:
+            start = text.find("[IMAGE_PLACEHOLDER:") + len("[IMAGE_PLACEHOLDER:")
+            end = text.find("]", start)
+            if end != -1:
+                sysid = text[start:end]
+
+                # Find image with sysid in filename
+                found_file = None
+                for filename in os.listdir(local_image_folder):
+                    if sysid in filename:
+                        found_file = os.path.join(local_image_folder, filename)
+                        break
+                
+                if found_file:
+                    # Remove placeholder text
+                    para.clear()
+                    # Add image
+                    try:
+                        with open(found_file, 'rb') as f:
+                            img_stream = BytesIO(f.read())
+                            run = para.add_run()
+                            run.add_picture(img_stream, width=Inches(4))
+                    except Exception as e:
+                        para.add_run(f"[Failed to load image for {sysid}: {e}]")
+                else:
+                    para.clear()
+                    para.add_run(f"[No image found for {sysid}]")
+
+    doc.save(output_path)
+
 # Parse command-line argument for knowledge base ID
 parser = argparse.ArgumentParser(description='Download and export KB articles from ServiceNow')
 parser.add_argument('kb_id', type=str, help='Knowledge Base sys_id (e.g., 01125e5a1b9b685017eeebd22a4bcb44)')
@@ -371,8 +444,17 @@ try:
             table_sys_id = article.get('sys_id')
             if table_sys_id:
                 download_attachments_for_article(table_sys_id, article_dir, headers)
-            else:
+            else:                
                 print(f"⚠️ No sys_id found for article {safe_article_number}, skipping attachment download.")
+                
+            # After saving the article DOCX (e.g., article_docx_path)
+            replace_placeholders_with_images(
+                docx_path,
+                local_image_folder=article_dir,  # Your attachment folder for the article
+                output_path=os.path.join(article_dir, docx_filename)
+            )
+             
+            
 
         
        
