@@ -260,23 +260,7 @@ def download_attachments_for_article(table_sys_id, output_dir, headers):
                 print(f"   ✗ Error downloading {file_name}: {e}")
 
 
-# def add_html_with_images(doc, html_content):
-#     soup = BeautifulSoup(html_content, 'html.parser')
-
-#     for elem in soup.contents:
-#         if elem.name == 'img':
-#             src = elem.get('src')
-#             if src:
-#                 try:
-#                     img_data = requests.get(src).content
-#                     img_stream = BytesIO(img_data)
-#                     doc.add_picture(img_stream, width=Inches(4))  # or another size
-#                 except Exception as e:
-#                     doc.add_paragraph(f'[Image failed to load: {src}]')
-#         elif elem.name:
-#             doc.add_paragraph(elem.get_text())
-#         else:
-#             doc.add_paragraph(str(elem).strip())
+ 
 
 def add_html_with_images(doc, html_content):
     soup = BeautifulSoup(html_content, 'html.parser')
@@ -351,15 +335,25 @@ def replace_placeholders_with_images(docx_path, local_image_folder, output_path)
 
     doc.save(output_path)
 
-# Parse command-line argument for knowledge base ID
-parser = argparse.ArgumentParser(description='Download and export KB articles from ServiceNow')
-parser.add_argument('kb_id', type=str, help='Knowledge Base sys_id (e.g., 01125e5a1b9b685017eeebd22a4bcb44)')
+# # Parse command-line argument for knowledge base ID
+# parser = argparse.ArgumentParser(description='Download and export KB articles from ServiceNow')
+# parser.add_argument('kb_id', type=str, help='Knowledge Base sys_id (e.g., 01125e5a1b9b685017eeebd22a4bcb44)')
+# args = parser.parse_args()
+# kb_id = args.kb_id
+
+
+# # Your API call
+# url = f"https://lendlease.service-now.com/api/now/table/kb_knowledge?sysparm_query=sys_class_name!=^publishedISNOTEMPTY^latest=true^kb_knowledge_base={kb_id}&sysparm_display_value=true"
+
+# Parse command-line argument for specific article number
+parser = argparse.ArgumentParser(description='Download and export a specific KB article from ServiceNow')
+parser.add_argument('article_number', type=str, help='KB article number (e.g., KB0012345)')
 args = parser.parse_args()
-kb_id = args.kb_id
+article_number = args.article_number
 
+# Updated API call to get only one article by number
+url = f"https://lendlease.service-now.com/api/now/table/kb_knowledge?sysparm_query=number={article_number}&sysparm_display_value=true"
 
-# Your API call
-url = f"https://lendlease.service-now.com/api/now/table/kb_knowledge?sysparm_query=sys_class_name!=^publishedISNOTEMPTY^latest=true^kb_knowledge_base={kb_id}&sysparm_display_value=true"
 payload = {}
 
 token = get_bearer_token()
@@ -367,107 +361,36 @@ headers = {
   'Authorization': f'Bearer {token}',
   'Cookie': 'BIGipServerpool_lendlease=c5889ad29f701618e3baa37002034b82; JSESSIONID=3901AC59B602B51CE1CF74C8956FD362; glide_node_id_for_js=fc4812175032dd94c0ff92cf846b17cf27f0dce0a6beb49e12e5c7bb0f48d836; glide_session_store=6360D6592B3D6E50E412F41CD891BF5D; glide_user_activity=U0N2M18xOnRMdkppdFlTN2o2cFlnUVdaQ092UjZ6S0pFdXV0dmZBb3BMcGxVa0hrZ1E9OlVBQWc4QWozUERYQi9mVCs2WDRJa0hTRTgwQjkxMGZkMzUrNGxlUXRNUW89; glide_user_route=glide.5a07cc0a1b859ed021434a69d48daaeb'
 }
+response = requests.get(url, headers=headers)
+if response.status_code != 200:
+    print(f"❌ Failed to fetch article {article_number}. Status code: {response.status_code}")
+    exit(1)
 
-try:
-    # Make API request
-    response = requests.request("GET", url, headers=headers, data=payload)
-    
-    if response.status_code == 200:
-        # Parse JSON response
-        data = response.json()
-        
-        # Generate timestamp for filename
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        
-        # Create Word document
-        doc = Document()
-        
-        # Document title and header
-        title = doc.add_heading('Lendlease Knowledge Base Articles', 0)
-        title.alignment = WD_ALIGN_PARAGRAPH.CENTER
-        
-        # Document info
-        info_para = doc.add_paragraph()
-        info_para.add_run(f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
-        info_para.add_run(f"Total Articles: {len(data.get('result', []))}")
-        info_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
-        
-        # Add separator
-        doc.add_paragraph("_" * 80)
-        
-        # Process each article
-        articles = data.get('result', [])
-        for i, article in enumerate(articles):
-            # Generate a new document for each article
-            doc = Document()
+data = response.json()
+articles = data.get('result', [])
 
-            # Document title
-            title = doc.add_heading('Lendlease Knowledge Base Article', 0)
-            title.alignment = WD_ALIGN_PARAGRAPH.CENTER
+if not articles:
+    print(f"❌ No article found with number {article_number}")
+    exit(1)
 
-            # Article info
-            info_para = doc.add_paragraph()
-            info_para.add_run(f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
-            info_para.add_run(f"Article Number: {article.get('number', 'Unknown')}")
-            info_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
+article = articles[0]  # Just one
 
-            doc.add_paragraph("_" * 80)
+output_dir = os.path.join("output", article_number)
+os.makedirs(output_dir, exist_ok=True)
 
-            # Add article content
-            format_kb_article_to_docx(doc, article)
+# Download attachments
+download_attachments_for_article(article['sys_id'], output_dir, headers)
 
-            # Save each article as a separate .docx file
-            safe_article_number = re.sub(r'[^\w\-_. ]', '_', article.get('number', f"article_{i+1}"))
-            # Create output directory if it doesn't exist
-            # output_dir = "KB_docx_files_{timestamp}".format(timestamp=timestamp)
-            # os.makedirs(output_dir, exist_ok=True)
-            # Create parent directory
-            parent_dir = f"KB_docx_files_{timestamp}"
-            os.makedirs(parent_dir, exist_ok=True)
+# Generate DOCX
+doc = Document()
+format_kb_article_to_docx(doc, article)
 
-            # Create subfolder for each article number
-            article_number = article.get('number', f"article_{i+1}")
-            safe_article_number = re.sub(r'[^\w\-_. ]', '_', article_number)
-            article_dir = os.path.join(parent_dir, safe_article_number)
-            os.makedirs(article_dir, exist_ok=True)
+temp_docx_path = os.path.join(output_dir, f"{article_number}_temp.docx")
+final_docx_path = os.path.join(output_dir, f"{article_number}.docx")
 
+doc.save(temp_docx_path)
 
-            # Save the .docx file into the folder
-            docx_filename = f"kb_article_{safe_article_number}.docx"
-            docx_path = os.path.join(article_dir, docx_filename)
-            doc.save(docx_path)
-            print(f"📄 Saved: {docx_path}")
-            
-            # Download attachments for this article
-            table_sys_id = article.get('sys_id')
-            if table_sys_id:
-                download_attachments_for_article(table_sys_id, article_dir, headers)
-            else:                
-                print(f"⚠️ No sys_id found for article {safe_article_number}, skipping attachment download.")
-                
-            # After saving the article DOCX (e.g., article_docx_path)
-            replace_placeholders_with_images(
-                docx_path,
-                local_image_folder=article_dir,  # Your attachment folder for the article
-                output_path=os.path.join(article_dir, docx_filename)
-            )
-             
-            
+# Replace image placeholders
+replace_placeholders_with_images(temp_docx_path, output_dir, final_docx_path)
 
-        
-       
-        print(f"📊 Processed {len(articles)} articles")
-        
-       
-        
-    else:
-        print(f"❌ API request failed with status code: {response.status_code}")
-        print(f"Response: {response.text[:200]}...")
-
-except requests.exceptions.RequestException as e:
-    print(f"❌ Request failed: {e}")
-except json.JSONDecodeError as e:
-    print(f"❌ Failed to parse JSON response: {e}")
-except Exception as e:
-    print(f"❌ An error occurred: {e}")
-
+print(f"✅ DOCX generated at: {final_docx_path}")
