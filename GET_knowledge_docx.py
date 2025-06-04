@@ -141,7 +141,7 @@ def format_kb_article_to_docx(doc, article):
         ("Category:",article.get('category')),
         ("Reminder send date:",article.get('u_reminder_send_date')),
         ("Wiki:",article.get('wiki')),
-        ("Rating:",article.get('rating"')),
+        ("Rating:",article.get('rating')),
         ("Source:",article.get('source')),
         ("x_caukp_ebonding_sdc:",article.get('x_caukp_ebonding_sdc')),
         ("Scheduled Publish date:",article.get('scheduled_publish_date')),
