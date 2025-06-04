@@ -165,7 +165,7 @@ cython_debug/
 *.json
 attachment_downloads_*/
 KB_docx_files
-KB_docx_files_*/
+KB_docx_file*/
 
 # But do NOT ignore requirements.txt
 !requirements.txt

@@ -375,7 +375,7 @@ if not articles:
 
 article = articles[0]  # Just one
 
-output_dir = os.path.join("output", article_number)
+output_dir = os.path.join("KB_docx_files", article_number)
 os.makedirs(output_dir, exist_ok=True)
 
 # Download attachments
