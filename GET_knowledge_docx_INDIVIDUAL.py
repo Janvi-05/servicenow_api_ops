@@ -202,10 +202,10 @@ def format_kb_article_to_docx(doc, article):
         clean_text = clean_inline_spans(article['text']) #extract_clean_text_from_html(article['text']) # clean_html_text(article['text']) 
         
     #     # Split content into paragraphs and add them
-        paragraphs = clean_text.split('\n\n')
-        for para_text in paragraphs:
-            if para_text.strip():
-                doc.add_paragraph(para_text.strip())
+        # paragraphs = clean_text.split('\n\n')
+        # for para_text in paragraphs:
+        #     if para_text.strip():
+        #         doc.add_paragraph(para_text.strip())
     
 
 
