@@ -1,6 +1,6 @@
 import requests
 import json
-from bs4 import BeautifulSoup, NavigableString
+from bs4 import BeautifulSoup, NavigableString, Tag
 from datetime import datetime
 import re
 import os
@@ -11,10 +11,53 @@ from docx.shared import Inches
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 from dotenv import load_dotenv
 from urllib.parse import urlencode
+import html2text
+import html
+from html import unescape
+from html2docx import html2docx
 
 load_dotenv()
- 
 
+def clean_inline_spans(html_content):
+    if not html_content:
+        return ""
+
+    soup = BeautifulSoup(html_content, 'html.parser')
+
+    def get_text_from_node(node):
+        if isinstance(node, NavigableString):
+            return str(node)
+        elif isinstance(node, Tag):
+            # Block-level tags that should create paragraph breaks
+            block_tags = ['p', 'div', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'li', 'tr', 'table', 'section', 'article', 'br']
+
+            if node.name == 'br':
+                return '\n'  # treat line break
+
+            if node.name in block_tags:
+                # Join children with spaces, then add a line break after block
+                inner_text = ''.join(get_text_from_node(c) for c in node.children)
+                return inner_text.strip() + '\n\n'
+            else:
+                # Inline elements: join children with no added breaks, just spaces
+                inner_text = ''.join(get_text_from_node(c) for c in node.children)
+                return inner_text
+
+        return ''
+
+    text = get_text_from_node(soup)
+    text = unescape(text)
+    # Normalize whitespace: replace multiple spaces/newlines with single spaces except paragraph breaks
+    # First replace multiple spaces with single space
+    text = re.sub(r'[ \t]+', ' ', text)
+    # Then replace multiple newlines with exactly two newlines (paragraph break)
+    text = re.sub(r'\n\s*\n+', '\n\n', text)
+    # Trim leading/trailing whitespace
+    text = text.strip()
+
+    return text
+
+ 
 
 def get_bearer_token():
     url = "https://lendlease.service-now.com/oauth_token.do"
@@ -36,22 +79,24 @@ def get_bearer_token():
     return data['access_token']
 
 def clean_html_text(html_content):
-    """Convert HTML to clean text"""
+    """Convert HTML to clean, linear text without unnecessary line breaks from inline tags like <span>."""
     if not html_content:
         return ""
     
-    # Parse HTML
     soup = BeautifulSoup(html_content, 'html.parser')
-    
-    # Convert to text while preserving some structure
-    text = soup.get_text()
-    
-    # Clean up extra whitespace and line breaks
-    text = re.sub(r'\n\s*\n', '\n\n', text)  # Multiple newlines to double newline
-    text = re.sub(r'[ \t]+', ' ', text)       # Multiple spaces/tabs to single space
-    text = text.strip()
-    
+
+    # Join all text chunks ignoring artificial breaks between inline tags
+    text = ''.join(soup.stripped_strings)
+
+    # Optional: unescape HTML entities like &lsquo; and &rsquo;
+    from html import unescape
+    text = unescape(text)
+
+    # Normalize whitespace
+    text = re.sub(r'\s+', ' ', text).strip()
+
     return text
+
 
 
 
@@ -154,13 +199,13 @@ def format_kb_article_to_docx(doc, article):
     if article.get('text'):
         content_heading = doc.add_heading('Content', level=2)
         add_html_with_images(doc, article['text'])
-    #     clean_text = clean_html_text(article['text'])
+        clean_text = clean_inline_spans(article['text']) #extract_clean_text_from_html(article['text']) # clean_html_text(article['text']) 
         
     #     # Split content into paragraphs and add them
-    #     paragraphs = clean_text.split('\n\n')
-    #     for para_text in paragraphs:
-    #         if para_text.strip():
-    #             doc.add_paragraph(para_text.strip())
+        paragraphs = clean_text.split('\n\n')
+        for para_text in paragraphs:
+            if para_text.strip():
+                doc.add_paragraph(para_text.strip())
     
 
 
@@ -237,39 +282,55 @@ def download_attachments_for_article(table_sys_id, output_dir, headers):
 def add_html_with_images(doc, html_content):
     soup = BeautifulSoup(html_content, 'html.parser')
 
-    def process_element(elem):
-        if elem.name == 'img':
+    def is_inline(elem):
+        # Tags usually inline in HTML
+        inline_tags = {'span', 'a', 'b', 'i', 'u', 'em', 'strong', 'small', 'sub', 'sup', 'mark', 'code', 'br'}
+        return elem.name in inline_tags if elem.name else False
+
+    def process_element(elem, parent_paragraph=None):
+        if isinstance(elem, NavigableString):
+            # Append text to the paragraph if exists, else create new
+            text = str(elem).strip()
+            if text:
+                if parent_paragraph is None:
+                    parent_paragraph = doc.add_paragraph()
+                parent_paragraph.add_run(text + ' ')
+            return parent_paragraph
+
+        elif elem.name == 'img':
+            # Add image placeholder in a new paragraph
             src = elem.get('src', '')
             import re
             sysid_match = re.search(r'sys_id=([a-zA-Z0-9]+)', src)
+            para = doc.add_paragraph()
             if sysid_match:
                 sysid = sysid_match.group(1)
-                doc.add_paragraph(f"[IMAGE_PLACEHOLDER:{sysid}]")
+                para.add_run(f"[IMAGE_PLACEHOLDER:{sysid}]")
             else:
-                doc.add_paragraph("[IMAGE_PLACEHOLDER:UNKNOWN]")
-        elif elem.name:
-            # For elements other than <img>, process children
-            text_chunks = []
-            for child in elem.children:
-                if child.name == 'img':
-                    process_element(child)
-                elif isinstance(child, NavigableString):
-                    text = str(child).strip()
-                    if text:
-                        text_chunks.append(text)
-                elif child.name:
-                    process_element(child)
-            if text_chunks:
-                doc.add_paragraph(' '.join(text_chunks))
-        elif isinstance(elem, NavigableString):
-            text = str(elem).strip()
-            if text:
-                doc.add_paragraph(text)
+                para.add_run("[IMAGE_PLACEHOLDER:UNKNOWN]")
+            return None
 
-    # Process all top-level elements in body or whole document
+        elif is_inline(elem):
+            # Inline element: add its text to the existing paragraph or create new one
+            if parent_paragraph is None:
+                parent_paragraph = doc.add_paragraph()
+
+            for child in elem.children:
+                parent_paragraph = process_element(child, parent_paragraph)
+
+            return parent_paragraph
+
+        else:
+            # Block-level element: process children each starting fresh paragraphs
+            for child in elem.children:
+                process_element(child, None)
+            return None
+
+    # Process top-level elements
     top_level = soup.body.contents if soup.body else soup.contents
     for child in top_level:
-        process_element(child)
+        process_element(child, None)
+
 
 def replace_placeholders_with_images(docx_path, local_image_folder, output_path):
     doc = Document(docx_path)
@@ -334,10 +395,11 @@ headers = {
   'Cookie': 'BIGipServerpool_lendlease=c5889ad29f701618e3baa37002034b82; JSESSIONID=3901AC59B602B51CE1CF74C8956FD362; glide_node_id_for_js=fc4812175032dd94c0ff92cf846b17cf27f0dce0a6beb49e12e5c7bb0f48d836; glide_session_store=6360D6592B3D6E50E412F41CD891BF5D; glide_user_activity=U0N2M18xOnRMdkppdFlTN2o2cFlnUVdaQ092UjZ6S0pFdXV0dmZBb3BMcGxVa0hrZ1E9OlVBQWc4QWozUERYQi9mVCs2WDRJa0hTRTgwQjkxMGZkMzUrNGxlUXRNUW89; glide_user_route=glide.5a07cc0a1b859ed021434a69d48daaeb'
 }
 response = requests.get(url, headers=headers)
+
 if response.status_code != 200:
     print(f"❌ Failed to fetch article {article_number}. Status code: {response.status_code}")
     exit(1)
-
+timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
 data = response.json()
 articles = data.get('result', [])
 
@@ -346,8 +408,8 @@ if not articles:
     exit(1)
 
 article = articles[0]  # Just one
-
-output_dir = os.path.join("KB_docx_files", article_number)
+parent_dir = f"KB_docx_files_{timestamp}"
+output_dir = os.path.join(parent_dir, article_number)
 os.makedirs(output_dir, exist_ok=True)
 
 # Download attachments
