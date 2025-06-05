@@ -12,6 +12,8 @@ from docx.shared import Inches
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 from dotenv import load_dotenv
 from urllib.parse import urlencode
+from docx.oxml import OxmlElement
+from docx.oxml.ns import qn
 
 load_dotenv()
  
@@ -447,7 +449,8 @@ kb_id = args.kb_id
 
 
 # Your API call
-url = f"https://lendlease.service-now.com/api/now/table/kb_knowledge?sysparm_query=sys_class_name!=^publishedISNOTEMPTY^latest=true^kb_knowledge_base={kb_id}&sysparm_display_value=true"
+# url = f"https://lendlease.service-now.com/api/now/table/kb_knowledge?sysparm_query=sys_class_name!=^publishedISNOTEMPTY^latest=true^kb_knowledge_base={kb_id}&sysparm_display_value=true"
+url = f"https://lendlease.service-now.com/api/now/table/kb_knowledge?sysparm_query=workflow_state=published^active=true^latest=true^publishedISNOTEMPTY^kb_knowledge_base={kb_id}&sysparm_display_value=true"
 payload = {}
 
 token = get_bearer_token()

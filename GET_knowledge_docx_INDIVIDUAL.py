@@ -403,6 +403,7 @@ article_number = args.article_number
 # Updated API call to get only one article by number
 url = f"https://lendlease.service-now.com/api/now/table/kb_knowledge?sysparm_query=number={article_number}&sysparm_display_value=true"
 
+
 payload = {}
 
 token = get_bearer_token()
