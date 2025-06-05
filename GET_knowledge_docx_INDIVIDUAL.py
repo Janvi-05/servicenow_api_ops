@@ -309,7 +309,9 @@ def add_html_with_images(doc, html_content):
             else:
                 para.add_run("[IMAGE_PLACEHOLDER:UNKNOWN]")
             return None
-
+        elif elem.name == 'table':
+            add_html_table(doc, elem)
+            return None
         elif is_inline(elem):
             # Inline element: add its text to the existing paragraph or create new one
             if parent_paragraph is None:
@@ -330,6 +332,20 @@ def add_html_with_images(doc, html_content):
     top_level = soup.body.contents if soup.body else soup.contents
     for child in top_level:
         process_element(child, None)
+
+def add_html_table(doc, table_elem):
+    rows = table_elem.find_all('tr')
+    if not rows:
+        return
+    num_cols = max(len(row.find_all(['td', 'th'])) for row in rows)
+    table = doc.add_table(rows=0, cols=num_cols)
+    table.style = 'Table Grid'
+    for row_elem in rows:
+        row_cells = row_elem.find_all(['td', 'th'])
+        row = table.add_row()
+        for i, cell_elem in enumerate(row_cells):
+            row.cells[i].text = cell_elem.get_text(strip=True)
+
 
 
 def replace_placeholders_with_images(docx_path, local_image_folder, output_path):
