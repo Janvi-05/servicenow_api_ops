@@ -17,9 +17,60 @@ import html
 from html import unescape
 import shutil
 from html2docx import html2docx
+from docx.oxml import OxmlElement
+from docx.oxml.ns import qn
+from docx.shared import Pt
 
 load_dotenv()
 
+def add_hyperlink(paragraph, url, text, styles=None):
+    if styles is None:
+        styles = {}
+
+    part = paragraph.part
+    r_id = part.relate_to(
+        url,
+        "http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink",
+        is_external=True
+    )
+
+    hyperlink = OxmlElement("w:hyperlink")
+    hyperlink.set(qn("r:id"), r_id)
+
+    new_run = OxmlElement("w:r")
+    rPr = OxmlElement("w:rPr")
+
+    rStyle = OxmlElement("w:rStyle")
+    rStyle.set(qn("w:val"), "Hyperlink")
+    rPr.append(rStyle)
+
+    if styles.get("bold"):
+        b = OxmlElement("w:b")
+        rPr.append(b)
+    if styles.get("italic"):
+        i = OxmlElement("w:i")
+        rPr.append(i)
+    if styles.get("strike"):
+        strike = OxmlElement("w:strike")
+        rPr.append(strike)
+    if styles.get("underline", True):
+        u = OxmlElement("w:u")
+        u.set(qn("w:val"), "single")
+        rPr.append(u)
+    if "color" in styles:
+        color_elem = OxmlElement("w:color")
+        color_elem.set(qn("w:val"), styles["color"])
+        rPr.append(color_elem)
+
+    new_run.append(rPr)
+
+    text_elem = OxmlElement("w:t")
+    text_elem.text = text.strip()
+    new_run.append(text_elem)
+
+    hyperlink.append(new_run)
+    paragraph._p.append(hyperlink)
+    return paragraph
 
 def clean_inline_spans(html_content):
     if not html_content:
@@ -336,6 +387,15 @@ def add_html_with_images(doc, html_content):
         elif elem.name == 'table':
             add_html_table(doc, elem)
             return None
+        elif elem.name == 'a':
+            href = elem.get('href')
+            link_text = elem.get_text(strip=True)
+            if href and link_text:
+                if parent_paragraph is None:
+                    parent_paragraph = doc.add_paragraph()
+                add_hyperlink(parent_paragraph, href, link_text)
+            return parent_paragraph
+
         elif is_inline(elem):
             # Inline element: add its text to the existing paragraph or create new one
             if parent_paragraph is None:
