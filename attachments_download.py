@@ -1,19 +1,44 @@
 import requests
 import os
 import json
- 
+from urllib.parse import urlencode
+from dotenv import load_dotenv
+
+load_dotenv()
+
+def get_bearer_token():
+    url = "https://lendlease.service-now.com/oauth_token.do"
+    payload_dict = {
+        'grant_type': 'password',
+        'username': os.getenv('SNOW_USERNAME'),
+        'password': os.getenv('SNOW_PASSWORD'),
+        'client_id': os.getenv('SNOW_CLIENT_ID'),
+        'client_secret': os.getenv('SNOW_CLIENT_SECRET')
+    }
+    payload = urlencode(payload_dict)
+
+    headers = {
+        'Content-Type': 'application/x-www-form-urlencoded',
+    }
+    response = requests.post(url, data=payload, headers=headers)
+    print(f"Response Status Code: {response.status_code}")
+    data = response.json()
+    print(data)
+    return data['access_token'] 
+
 # Your existing API call
 url = "https://lendlease.service-now.com/api/now/attachment?sysparm_query=table_sys_id%3D001d5d331bbba010ef4543b4bd4bcb05"
 payload = {}
 
+token = get_bearer_token()
 headers = {
-  'Authorization': 'Bearer LFT612CwbhRj2QR_id2LcEojIWraGE9lgpu51BabMHszqcWclNCQIpqHSaDO-pmwGXBowMINr1d_ENTsypdIeQ',
-  'Cookie': 'BIGipServerpool_lendlease=c5889ad29f701618e3baa37002034b82; JSESSIONID=3A42AFC667475429E96BBE550763EDE9; glide_node_id_for_js=fc4812175032dd94c0ff92cf846b17cf27f0dce0a6beb49e12e5c7bb0f48d836; glide_session_store=F5FE82552B3D6E50E412F41CD891BF86; glide_user_activity=U0N2M18xOnRMdkppdFlTN2o2cFlnUVdaQ092UjZ6S0pFdXV0dmZBb3BMcGxVa0hrZ1E9OlVBQWc4QWozUERYQi9mVCs2WDRJa0hTRTgwQjkxMGZkMzUrNGxlUXRNUW89; glide_user_route=glide.5a07cc0a1b859ed021434a69d48daaeb'
+    
+    'Authorization': f'Bearer {token}',
 }
 
  
 
-def download_attachments():
+def download_attachments(headers):
     # Get the attachment list
     response = requests.request("GET", url, headers=headers, data=payload)
     
@@ -65,4 +90,4 @@ def download_attachments():
 
 # Run the download function
 if __name__ == "__main__":
-    download_attachments()
+    download_attachments(headers)
