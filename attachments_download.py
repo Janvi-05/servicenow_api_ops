@@ -1,6 +1,7 @@
 import requests
 import os
 import json
+import argparse
 from urllib.parse import urlencode
 from dotenv import load_dotenv
 
@@ -27,7 +28,7 @@ def get_bearer_token():
     return data['access_token'] 
 
 # Your existing API call
-url = "https://lendlease.service-now.com/api/now/attachment?sysparm_query=table_sys_id%3D001d5d331bbba010ef4543b4bd4bcb05"
+
 payload = {}
 
 token = get_bearer_token()
@@ -38,7 +39,8 @@ headers = {
 
  
 
-def download_attachments(headers):
+def download_attachments(sys_id,headers):
+    url = "https://lendlease.service-now.com/api/now/attachment?sysparm_query=table_sys_id%{sys_id}"
     # Get the attachment list
     response = requests.request("GET", url, headers=headers, data=payload)
     
@@ -47,7 +49,7 @@ def download_attachments(headers):
         attachments = data.get('result', [])
         
         # Create downloads directory if it doesn't exist
-        table_sys_id=data['result'][0]['table_sys_id']
+        table_sys_id=sys_id
         print(f"Table Sys ID: {table_sys_id}")
         # exit()
         download_dir = f"attachment_downloads_{table_sys_id}"
@@ -90,4 +92,9 @@ def download_attachments(headers):
 
 # Run the download function
 if __name__ == "__main__":
-    download_attachments(headers)
+    parser = argparse.ArgumentParser(description='Download and export pdf from ServiceNow')
+    parser.add_argument('sys_id', type=str, help='sys_id (e.g., 01125e5a1b9b685017eeebd22a4bcb44)')
+    args = parser.parse_args()
+    sys_id = args.sys_id
+    print(f"Downloading attachments for sys_id: {sys_id}")
+    download_attachments(sys_id,headers)
