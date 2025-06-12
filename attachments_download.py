@@ -38,57 +38,72 @@ headers = {
 }
 
  
+def download_attachments_for_article(table_sys_id, output_dir, headers):
+    """Download attachments for a specific KB article and save them in its folder,
+    refresh token if 401 Unauthorized is received."""
 
-def download_attachments(sys_id,headers):
-    url = "https://lendlease.service-now.com/api/now/attachment?sysparm_query=table_sys_id%{sys_id}"
-    # Get the attachment list
-    response = requests.request("GET", url, headers=headers, data=payload)
-    
-    if response.status_code == 200:
-        data = response.json()
-        attachments = data.get('result', [])
-        
-        # Create downloads directory if it doesn't exist
-        table_sys_id=sys_id
-        print(f"Table Sys ID: {table_sys_id}")
-        # exit()
-        download_dir = f"attachment_downloads_{table_sys_id}"
-        if not os.path.exists(download_dir):
-            os.makedirs(download_dir)
-        
-        print(f"Found {len(attachments)} attachments to download")
-        
-        for attachment in attachments:
-            file_name = attachment.get('file_name')
-            download_link = attachment.get('download_link')
-            file_size = attachment.get('size_bytes')
-            
-            if download_link and file_name:
-                print(f"\nDownloading: {file_name} ({file_size} bytes)")
-                
-                try:
-                    # Download the file
-                    file_response = requests.get(download_link, headers=headers)
-                    
-                    if file_response.status_code == 200:
-                        # Save the file
-                        file_path = os.path.join(download_dir, file_name)
-                        
-                        with open(file_path, 'wb') as f:
-                            f.write(file_response.content)
-                        
-                        print(f"✓ Successfully downloaded: {file_path}")
-                    else:
-                        print(f"✗ Failed to download {file_name}. Status code: {file_response.status_code}")
-                        
-                except Exception as e:
-                    print(f"✗ Error downloading {file_name}: {str(e)}")
-            else:
-                print(f"✗ Missing download link or filename for attachment: {attachment.get('sys_id')}")
-    
-    else:
-        print(f"Failed to get attachment list. Status code: {response.status_code}")
-        print(f"Response: {response.text}")
+    attachment_url = f"https://lendlease.service-now.com/api/now/attachment?sysparm_query=table_sys_id={table_sys_id}"
+
+    def try_download(headers):
+        try:
+            response = requests.get(attachment_url, headers=headers)
+            if response.status_code == 401:
+                return 'unauthorized', None
+            elif response.status_code != 200:
+                print(f"❌ Failed to get attachment list for {table_sys_id}. Status code: {response.status_code}")
+                return 'failed', None
+
+            data = response.json()
+            attachments = data.get('result', [])
+            if not attachments:
+                print(f"📎 No attachments found for {table_sys_id}")
+                return 'empty', None
+
+            print(f"📎 Found {len(attachments)} attachment(s) for {table_sys_id}")
+            return 'success', attachments
+        except Exception as e:
+            print(f"❌ Exception while fetching attachments: {e}")
+            return 'error', None
+
+    status, attachments = try_download(headers)
+
+    if status == 'unauthorized':
+        print("🔄 Access token expired, refreshing token...")
+        # Refresh token here and update headers
+        new_token = get_bearer_token()
+        headers['Authorization'] = f'Bearer {new_token}'
+        # Retry once with new token
+        status, attachments = try_download(headers)
+        if status == 'unauthorized':
+            print("❌ Token refresh failed or new token also unauthorized.")
+            return
+        elif status != 'success':
+            return
+
+    if status != 'success':
+        return
+
+    # Download each attachment
+    for attachment in attachments:
+        file_name = attachment.get('file_name')
+        sys_id = attachment.get('sys_id')
+        file_name = f"{sys_id}_{file_name}" if file_name else f"{table_sys_id}_attachment"
+        download_link = attachment.get('download_link')
+        file_size = attachment.get('size_bytes')
+
+        if download_link and file_name:
+            try:
+                file_response = requests.get(download_link, headers=headers)
+                if file_response.status_code == 200:
+                    file_path = os.path.join(output_dir, file_name)
+                    with open(file_path, 'wb') as f:
+                        f.write(file_response.content)
+                    print(f"   ✓ Downloaded: {file_name} ({file_size} bytes)")
+                else:
+                    print(f"   ✗ Failed to download {file_name} (Status {file_response.status_code})")
+            except Exception as e:
+                print(f"   ✗ Error downloading {file_name}: {e}")
+
 
 # Run the download function
 if __name__ == "__main__":
@@ -97,4 +112,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
     sys_id = args.sys_id
     print(f"Downloading attachments for sys_id: {sys_id}")
-    download_attachments(sys_id,headers)
+
+    # Use current working directory
+    current_dir = os.getcwd()
+    download_attachments_for_article(sys_id, current_dir, headers)
