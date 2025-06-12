@@ -3,6 +3,7 @@ import os
 import json
 import argparse
 from urllib.parse import urlencode
+import datetime
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -107,12 +108,21 @@ def download_attachments_for_article(table_sys_id, output_dir, headers):
 
 # Run the download function
 if __name__ == "__main__":
+    
+
     parser = argparse.ArgumentParser(description='Download and export pdf from ServiceNow')
     parser.add_argument('sys_id', type=str, help='sys_id (e.g., 01125e5a1b9b685017eeebd22a4bcb44)')
     args = parser.parse_args()
     sys_id = args.sys_id
     print(f"Downloading attachments for sys_id: {sys_id}")
 
-    # Use current working directory
-    current_dir = os.getcwd()
-    download_attachments_for_article(sys_id, current_dir, headers)
+    # Create timestamped folder name
+    now = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+    folder_name = f"attachments_{sys_id}_{now}"
+    output_dir = os.path.join(os.getcwd(), folder_name)
+
+    # Make the directory if it doesn't exist
+    os.makedirs(output_dir, exist_ok=True)
+
+    download_attachments_for_article(sys_id, output_dir, headers)
+
