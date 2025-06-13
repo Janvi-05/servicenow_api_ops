@@ -127,8 +127,8 @@ def download_all_attachments_and_pdfs(json_file, headers):
         print(f"\n📥 Ticket: {ticket_number} (sys_id: {sys_id})")
 
         base_dir = os.path.join(master_folder, ticket_number)
-        attachment_dir = os.path.join(base_dir, "attachments")
-        pdf_dir = os.path.join(base_dir, "pdf")
+        attachment_dir = os.path.join(base_dir, "Attachments")
+        pdf_dir = os.path.join(base_dir, "PDFs")
 
         os.makedirs(attachment_dir, exist_ok=True)
         os.makedirs(pdf_dir, exist_ok=True)
