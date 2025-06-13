@@ -30,15 +30,20 @@ def get_bearer_token():
     return data['access_token']
 
 
-def download_servicenow_pdf(sys_id):   
+def download_servicenow_pdf(sys_id):
     bearer_token = get_bearer_token()
     headers = {
         'Authorization': f'Bearer {bearer_token}'
     }
-    
     url = f"https://lendlease.service-now.com/sn_hr_core_case.do?PDF&sys_id={sys_id}&sysparm_view=Default%20view"
-
     response = requests.get(url, headers=headers)
+
+    # Check if token expired (usually 401 Unauthorized)
+    if response.status_code == 401:
+        print("Token expired, refreshing token...")
+        bearer_token = get_bearer_token()  # Refresh token
+        headers['Authorization'] = f'Bearer {bearer_token}'
+        response = requests.get(url, headers=headers)  # Retry request
 
     if response.status_code == 200:
         filename = f"{sys_id}.pdf"
@@ -51,5 +56,5 @@ def download_servicenow_pdf(sys_id):
 
 
 if __name__ == "__main__":
-    sys_id = "00016018db51b450ee773313e29619cc"  # Replace with your actual sys_id
+    # sys_id = "00016018db51b450ee773313e29619cc"  # Replace with your actual sys_id
     download_servicenow_pdf(sys_id)
