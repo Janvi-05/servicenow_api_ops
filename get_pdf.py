@@ -1,5 +1,6 @@
 import requests
 from urllib.parse import urlencode
+import argparse
 from dotenv import load_dotenv
 import os
 
@@ -35,7 +36,8 @@ def download_servicenow_pdf(sys_id):
     headers = {
         'Authorization': f'Bearer {bearer_token}'
     }
-    url = f"https://lendlease.service-now.com/sn_hr_core_case.do?PDF&sys_id={sys_id}&sysparm_view=Default%20view"
+    # url = f"https://lendlease.service-now.com/sn_hr_core_case.do?PDF&sys_id={sys_id}&sysparm_view=Default%20view" #for HR tickets
+    url = f"https://lendlease.service-now.com/x_llusn_bankg_bi_req.do?PDF&sys_id={sys_id}&sysparm_view=Default%20view" #for finance tickets 
     response = requests.get(url, headers=headers)
 
     # Check if token expired (usually 401 Unauthorized)
@@ -56,5 +58,10 @@ def download_servicenow_pdf(sys_id):
 
 
 if __name__ == "__main__":
-    # sys_id = "00016018db51b450ee773313e29619cc"  # Replace with your actual sys_id
+    parser = argparse.ArgumentParser(description='Download and export pdf from ServiceNow')
+    parser.add_argument('sys_id', type=str, help='sys_id (e.g., 01125e5a1b9b685017eeebd22a4bcb44)')
+    args = parser.parse_args()
+    sys_id = args.sys_id
+    print(f"Downloading attachments for sys_id: {sys_id}")
+ 
     download_servicenow_pdf(sys_id)
