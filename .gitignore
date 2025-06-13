@@ -160,8 +160,24 @@ cython_debug/
 #.idea/
 
 *.txt
+*.pdf 
+*.csv
+*.xlsx
+*.xls
+*.pptx
+*.ppt
+*.jpg
+*.jpeg
+*.png
+*.gif
 *.docx
-*.md
+*.doc
+*.odt
+*.zip
+*.tar.gz
+*.tar.bz2
+*.tar.xz
+*.msg
 *.json
 attachment_downloads_*/
 KB_docx_files
