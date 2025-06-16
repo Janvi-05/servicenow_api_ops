@@ -182,6 +182,18 @@ cython_debug/
 attachment_downloads_*/
 KB_docx_files
 KB_docx_file*/
+downloadpdf.py
+downloadtickets.py
+fetch_all_records.py
+fetch_bonding_tickets.py
+fetchtry2.py
+fetchtry3.py
+attachmentstry.py
+HR_Ticket_fetchtry.py
+ticketstry2.py
+ticketstry3.py
+ticketstry4.py
+Treasurytickets.py
 
 # But do NOT ignore requirements.txt
 !requirements.txt
